@@ -1,9 +1,7 @@
 import requests
 import hashlib
 import uuid
-
 import config
-
 
 def gen_transaction_id():
     m = hashlib.md5()
@@ -222,3 +220,7 @@ def run():
 
 
 run()
+
+# TODO: replace this with a better solution ^_^
+#       we dont always want to press buttons!
+input("\nPress ENTER to continue.")
