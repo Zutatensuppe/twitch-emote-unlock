@@ -1,9 +1,7 @@
 import requests
 import hashlib
 import uuid
-
 import config
-
 
 def gen_transaction_id():
     m = hashlib.md5()
