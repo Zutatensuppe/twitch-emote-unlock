@@ -220,3 +220,7 @@ def run():
 
 
 run()
+
+# TODO: replace this with a better solution ^_^
+#       we dont always want to press buttons!
+input("\nPress ENTER to continue.")
