@@ -124,9 +124,9 @@ def extract_unlock_emote_costs(channel_points_context):
     randomCost = 0
     for item in automatic:
         if item["type"] == "CHOSEN_SUB_EMOTE_UNLOCK" and item["isEnabled"]:
-            chosenCost = item["defaultCost"] or item["minimumCost"]
+            chosenCost = item["cost"] or item["defaultCost"] or item["minimumCost"]
         elif item["type"] == "RANDOM_SUB_EMOTE_UNLOCK" and item["isEnabled"]:
-            randomCost = item["defaultCost"] or item["minimumCost"]
+            randomCost = item["cost"] or item["defaultCost"] or item["minimumCost"]
 
     return {
         "chosenCost": chosenCost,

@@ -1,0 +1,10 @@
+#!/bin/sh
+
+rm -rf dist
+poetry run pyinstaller --onefile run.py
+mkdir dist/twitch-emote-unlock
+mv dist/run dist/twitch-emote-unlock
+cp config.example.toml dist/twitch-emote-unlock/config.toml
+
+cd dist
+tar -cf twitch-emote-unlock-linux.tar.gz twitch-emote-unlock
