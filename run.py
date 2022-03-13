@@ -20,7 +20,36 @@ def post(data):
     )
 
 
-def unlock_chosen_emote(channel_id, unlock_cost, emote_id):
+def unlock_chosen_modified_emote(channel_id, cost, emote_id):
+    data = [
+        {
+            "operationName": "UnlockModifiedEmote",
+            "variables": {
+                "input": {
+                    "channelID": channel_id,
+                    "emoteID": emote_id,
+                    "cost": cost,
+                    "transactionID": gen_transaction_id()
+                }
+            },
+            "extensions":{
+                "persistedQuery":{
+                    "version": 1,
+                    "sha256Hash": "30e8cc29b1d6d96809f5e35f5e7a550ae8bf5d26966a9637d919477ffd0bfc52"
+                }
+            }
+        }
+    ]
+
+    res = post(data)
+    resjson = res.json()
+    if resjson[0]["data"]["unlockChosenModifiedSubscriberEmote"]["error"]:
+        print(repr(resjson))
+        return False
+    else:
+        return True
+
+def unlock_chosen_emote(channel_id, cost, emote_id):
     data = [
         {
             "operationName": "UnlockChosenSubscriberEmote",
@@ -28,7 +57,7 @@ def unlock_chosen_emote(channel_id, unlock_cost, emote_id):
                 "input": {
                     "channelID": channel_id,
                     "emoteID": emote_id,
-                    "cost": unlock_cost,
+                    "cost": cost,
                     "transactionID": gen_transaction_id(),
                 },
             },
@@ -50,14 +79,14 @@ def unlock_chosen_emote(channel_id, unlock_cost, emote_id):
         return True
 
 
-def unlock_random_emote(channel_id, unlock_cost):
+def unlock_random_emote(channel_id, cost):
     data = [
         {
             "operationName": "UnlockRandomSubscriberEmote",
             "variables": {
                 "input": {
                     "channelID": channel_id,
-                    "cost": unlock_cost,
+                    "cost": cost,
                     "transactionID": gen_transaction_id(),
                 }
             },
@@ -121,15 +150,20 @@ def extract_unlock_emote_costs(channel_points_context):
     automatic = settings["automaticRewards"]
 
     chosenCost = 0
+    chosenModifiedCost = 0
     randomCost = 0
     for item in automatic:
         if item["type"] == "CHOSEN_SUB_EMOTE_UNLOCK" and item["isEnabled"]:
             chosenCost = item["cost"] or item["defaultCost"] or item["minimumCost"]
+        elif item["type"] == "CHOSEN_MODIFIED_SUB_EMOTE_UNLOCK" and item["isEnabled"]:
+            chosenModifiedCost = item["cost"] or item["defaultCost"] or item["minimumCost"]
         elif item["type"] == "RANDOM_SUB_EMOTE_UNLOCK" and item["isEnabled"]:
             randomCost = item["cost"] or item["defaultCost"] or item["minimumCost"]
 
+
     return {
         "chosenCost": chosenCost,
+        "chosenModifiedCost": chosenModifiedCost,
         "randomCost": randomCost,
     }
 
@@ -139,7 +173,7 @@ def extract_channel_id(channel_points_context):
     return item["data"]["community"]["id"]
 
 
-def emotes_diff(channel_points_context, user_emotes_info, desired_emotes: set):
+def emotes_diff(channel_points_context, user_emotes_info, desired_emotes: set, costs):
     channel_emotes_map = dict()
     for emoteVariant in channel_points_context[0]['data']['community']['channel']['communityPointsSettings']["emoteVariants"]:
         if emoteVariant["isUnlockable"]:
@@ -153,7 +187,11 @@ def emotes_diff(channel_points_context, user_emotes_info, desired_emotes: set):
     missing_ids = []
     for token in desired_emotes:
         if not user_emotes_map.get(token) and channel_emotes_map.get(token):
-            missing_ids.append(channel_emotes_map.get(token))
+            if costs["chosenModifiedCost"]:
+                if not user_emotes_map.get(f"{token}_HF") and channel_emotes_map.get(token):
+                    missing_ids.append(channel_emotes_map.get(token))
+            else:
+                missing_ids.append(channel_emotes_map.get(token))
     return missing_ids
 
 
@@ -172,13 +210,14 @@ def handle_channel(channel):
         return
     print(f"Extracted channel id {channel_id}")
 
+    costs = extract_unlock_emote_costs(channel_points_context)
+
     user_emotes_info = get_user_emotes_info()
-    diff = emotes_diff(channel_points_context, user_emotes_info, channel_emotes)
+    diff = emotes_diff(channel_points_context, user_emotes_info, channel_emotes, costs)
     if not diff:
         print(f"✓ User already has all desired emotes ({', '.join(channel_emotes)})")
         return
 
-    costs = extract_unlock_emote_costs(channel_points_context)
     if costs["chosenCost"]:
         # unlock via 'chosen' method
         print(f"🪙  Price to unlock CHOSEN emote: {costs['chosenCost']}")
@@ -189,7 +228,19 @@ def handle_channel(channel):
                 return
             print("🔓 Unlocked a chosen emote")
             user_emotes_info = get_user_emotes_info()
-            diff = emotes_diff(channel_points_context, user_emotes_info, channel_emotes)
+            diff = emotes_diff(channel_points_context, user_emotes_info, channel_emotes, costs)
+        print(f"✓ User now has all desired emotes ({', '.join(channel_emotes)})")
+    elif costs["chosenModifiedCost"]:
+        # unlock via 'chosen_modified' method
+        print(f"🪙  Price to unlock CHOSEN MODIFIED emote: {costs['chosenModifiedCost']}")
+        while diff:
+            unlocked = unlock_chosen_modified_emote(channel_id, costs["chosenModifiedCost"], f"{diff[0]}_HF")
+            if not unlocked:
+                print("✖ Error when trying to unlock chosen modified emote")
+                return
+            print("🔓 Unlocked a chosen modified emote")
+            user_emotes_info = get_user_emotes_info()
+            diff = emotes_diff(channel_points_context, user_emotes_info, channel_emotes, costs)
         print(f"✓ User now has all desired emotes ({', '.join(channel_emotes)})")
     elif costs["randomCost"]:
         # unlock via 'random' method
@@ -203,7 +254,7 @@ def handle_channel(channel):
 
             print("🔓 Unlocked a random emote")
             user_emotes_info = get_user_emotes_info()
-            diff = emotes_diff(channel_points_context, user_emotes_info, channel_emotes)
+            diff = emotes_diff(channel_points_context, user_emotes_info, channel_emotes, costs)
             if not diff:
                 print(f"✓ User now has all desired emotes ({', '.join(channel_emotes)})")
                 return
