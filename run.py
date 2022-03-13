@@ -185,14 +185,17 @@ def emotes_diff(channel_points_context, user_emotes_info, desired_emotes: set, c
             user_emotes_map[emote["token"]] = emote["id"]
 
     missing_ids = []
+    invalid_emotes = []
     for token in desired_emotes:
-        if not user_emotes_map.get(token) and channel_emotes_map.get(token):
+        if not channel_emotes_map.get(token):
+            invalid_emotes.append(token)
+        elif not user_emotes_map.get(token) and channel_emotes_map.get(token):
             if costs["chosenModifiedCost"]:
                 if not user_emotes_map.get(f"{token}_HF") and channel_emotes_map.get(token):
                     missing_ids.append(channel_emotes_map.get(token))
             else:
                 missing_ids.append(channel_emotes_map.get(token))
-    return missing_ids
+    return (missing_ids, invalid_emotes,)
 
 
 def handle_channel(channel):
@@ -213,34 +216,38 @@ def handle_channel(channel):
     costs = extract_unlock_emote_costs(channel_points_context)
 
     user_emotes_info = get_user_emotes_info()
-    diff = emotes_diff(channel_points_context, user_emotes_info, channel_emotes, costs)
-    if not diff:
+    (missing_ids, invalid_emotes,) = emotes_diff(channel_points_context, user_emotes_info, channel_emotes, costs)
+    if invalid_emotes:
+        print(f"✖ These emotes do not exist: {', '.join(invalid_emotes)}")
+        return
+
+    if not missing_ids:
         print(f"✓ User already has all desired emotes ({', '.join(channel_emotes)})")
         return
 
     if costs["chosenCost"]:
         # unlock via 'chosen' method
         print(f"🪙  Price to unlock CHOSEN emote: {costs['chosenCost']}")
-        while diff:
-            unlocked = unlock_chosen_emote(channel_id, costs["chosenCost"], diff[0])
+        while missing_ids:
+            unlocked = unlock_chosen_emote(channel_id, costs["chosenCost"], missing_ids[0])
             if not unlocked:
                 print("✖ Error when trying to unlock chosen emote")
                 return
             print("🔓 Unlocked a chosen emote")
             user_emotes_info = get_user_emotes_info()
-            diff = emotes_diff(channel_points_context, user_emotes_info, channel_emotes, costs)
+            (missing_ids, invalid_emotes,) = emotes_diff(channel_points_context, user_emotes_info, channel_emotes, costs)
         print(f"✓ User now has all desired emotes ({', '.join(channel_emotes)})")
     elif costs["chosenModifiedCost"]:
         # unlock via 'chosen_modified' method
         print(f"🪙  Price to unlock CHOSEN MODIFIED emote: {costs['chosenModifiedCost']}")
-        while diff:
-            unlocked = unlock_chosen_modified_emote(channel_id, costs["chosenModifiedCost"], f"{diff[0]}_HF")
+        while missing_ids:
+            unlocked = unlock_chosen_modified_emote(channel_id, costs["chosenModifiedCost"], f"{missing_ids[0]}_HF")
             if not unlocked:
                 print("✖ Error when trying to unlock chosen modified emote")
                 return
             print("🔓 Unlocked a chosen modified emote")
             user_emotes_info = get_user_emotes_info()
-            diff = emotes_diff(channel_points_context, user_emotes_info, channel_emotes, costs)
+            (missing_ids, invalid_emotes,) = emotes_diff(channel_points_context, user_emotes_info, channel_emotes, costs)
         print(f"✓ User now has all desired emotes ({', '.join(channel_emotes)})")
     elif costs["randomCost"]:
         # unlock via 'random' method
@@ -251,11 +258,10 @@ def handle_channel(channel):
             if not unlocked:
                 print("✖ Error when trying to unlock random emote")
                 return
-
             print("🔓 Unlocked a random emote")
             user_emotes_info = get_user_emotes_info()
-            diff = emotes_diff(channel_points_context, user_emotes_info, channel_emotes, costs)
-            if not diff:
+            (missing_ids, invalid_emotes,) = emotes_diff(channel_points_context, user_emotes_info, channel_emotes, costs)
+            if not missing_ids:
                 print(f"✓ User now has all desired emotes ({', '.join(channel_emotes)})")
                 return
             random_tries -= 1
