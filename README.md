@@ -46,7 +46,7 @@ It may eat up your channel points :)
 5. More details and tabs for the row will appear. Click the Headers tab.
     ![5](docs/5.png)
 
-6. Scroll down to find 'Authoriation: OAuth BLABLABLABLABLA' in the
+6. Scroll down to find 'Authorization: OAuth BLABLABLABLABLA' in the
     Request Headers section. 'BLABLABLABLABLA' (blurred out 
     in the screenshot) is what you have to use
     ![6](docs/6.png)
